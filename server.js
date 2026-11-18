@@ -1,58 +1,59 @@
-const express = require('express');
-const { MongoClient } = require('mongodb');
-const path = require('path');
+require("dotenv").config();
+const express = require("express");
+const mongoose = require("mongoose");
+const cors = require("cors");
+const cookieParser = require("cookie-parser");
+const jwt = require("jsonwebtoken");
+const rateLimit = require("express-rate-limit");
+const path = require("path");
+const crypto = require("crypto");
 
 const app = express();
-const PORT = process.env.PORT || 3000;
-const MONGO_URI = process.env.MONGODB_URI;
-const DB_NAME = process.env.MONGODB_DB || 'thayyil_petroleum';
+app.set("trust proxy", 1); // Render sits behind a proxy; needed for correct secure-cookie behaviour
+app.use(cors({ origin: true, credentials: true }));
+app.use(cookieParser());
+app.use(express.json({ limit: "15mb" }));
 
-let db;
-async function connect() {
-  const client = new MongoClient(MONGO_URI);
-  await client.connect();
-  db = client.db(DB_NAME);
-  await db.collection('kv_store').createIndex({ updatedAt: 1 });
-  console.log('✅ Connected to MongoDB Atlas');
+const isProd = process.env.NODE_ENV === "production";
+const JWT_SECRET = process.env.JWT_SECRET || crypto.randomBytes(32).toString("hex");
+if (!process.env.JWT_SECRET) {
+  console.warn(
+    "鈿狅笍  JWT_SECRET is not set in the environment. Using a random secret for THIS run only, " +
+    "which means every restart logs everyone out. Set JWT_SECRET in Render's Environment " +
+    "Variables before going live."
+  );
 }
 
-app.use(express.json({ limit: '50mb' }));
-app.use(express.static(path.join(__dirname, 'public')));
+// ---------------- MongoDB ----------------
+const MONGO_URI = process.env.MONGO_URI || "mongodb://127.0.0.1:27017/thayyil_petroleum";
+mongoose.connect(MONGO_URI)
+  .then(() => console.log("鉁� MongoDB Connected"))
+  .catch((err) => console.error("鉂� MongoDB Error:", err.message));
 
-app.get('/api/data', async (_req, res) => {
-  try {
-    const docs = await db.collection('kv_store').find({}).toArray();
-    const out = {};
-    docs.forEach(d => { out[d._id] = d.value; });
-    res.json(out);
-  } catch (e) { res.status(500).json({ error: e.message }); }
+const StoreSchema = new mongoose.Schema({
+  key: { type: String, required: true, unique: true },
+  value: { type: mongoose.Schema.Types.Mixed, required: true },
+  updatedAt: { type: Date, default: Date.now }
 });
+const AppStore = mongoose.model("AppStore", StoreSchema);
 
-app.get('/api/data/:key', async (req, res) => {
-  try {
-    const doc = await db.collection('kv_store').findOne({ _id: req.params.key });
-    if (!doc) return res.status(404).json({ error: 'not found' });
-    res.json(doc.value);
-  } catch (e) { res.status(500).json({ error: e.message }); }
-});
+// The 8 localStorage keys the frontend keeps everything in.
+const SYNC_KEYS = [
+  "pump_users",
+  "pump_submissions",
+  "pump_last_readings",
+  "pump_fuel_rates",
+  "pump_daybooks",
+  "pump_credit_bills",
+  "pump_whatsapp_config",
+  "pump_whatsapp_queue"
+];
 
-app.put('/api/data/:key', async (req, res) => {
-  try {
-    const { value } = req.body;
-    if (value === undefined) return res.status(400).json({ error: 'value required' });
-    await db.collection('kv_store').updateOne(
-      { _id: req.params.key },
-      { $set: { value, updatedAt: new Date() } },
-      { upsert: true }
-    );
-    res.json({ success: true });
-  } catch (e) { res.status(500).json({ error: e.message }); }
-});
+// Defense in depth: the UI already hides fuel rates, day book, credit
+// bills, WhatsApp settings and staff management from Operators. The
+// backend now enforces the same boundary, so a logged-in Operator's
+// session token can't be used to write those keys even by someone
+// calling the API directly.
+const OPERATOR_WRITE_KEYS = new Set(["pump_submissions", "pump_last_readings", "pump_whatsapp_queue"]);
 
-app.get('*', (_req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'index.html'));
-});
-
-connect()
-  .then(() => app.listen(PORT, () => console.log(`🚀 Server on ${PORT}`)))
-  .catch(err => { console.error('MongoDB connect failed:', err); process.exit(1); });
+const normalizeStr = (s) => String(s || "").trim().toLowerCase();
