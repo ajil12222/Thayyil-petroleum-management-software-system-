@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>Thayyil Petroleum - Management & Accounts System</title>
+  <title>Thayyil Petroleum Management Software System</title>
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; transition: background-color 0.25s, color 0.25s, border-color 0.25s; }
@@ -178,7 +178,7 @@
     th, td { padding: 0.65rem 0.75rem; border-bottom: 1px solid var(--border-color); vertical-align: middle; color: var(--text-color); }
     th { background: var(--table-head-bg); color: var(--text-muted); font-weight: 600; white-space: nowrap; }
     tfoot td { background: var(--table-head-bg); font-weight: 700; border-top: 2px solid var(--input-border); border-bottom: 2px solid var(--sidebar-bg); }
-    .badge { display: inline-block; padding: 0.25rem 0.5rem; border-radius: 0.25rem; font-size: 0.75rem; font-weight: 700; }
+    .badge { display: inline-block; padding: 0.25rem 0.5rem; border-radius: 0.25rem; font-size: 0.75rem; font-weight: 700; white-space: nowrap; }
     .badge-admin { background: #f3e8ff; color: #6b21a8; }
     .badge-manager { background: #fef3c7; color: #92400e; }
     .badge-accountant { background: #e0e7ff; color: #3730a3; }
@@ -524,6 +524,7 @@
       }
 
       #dayBookPrintTitle { display: block !important; text-align: center !important; font-weight: bold !important; font-size: 16px !important; margin-bottom: 10px !important; color: #000 !important; }
+      .print-only-title { display: block !important; text-align: center !important; font-weight: 800 !important; font-size: 15px !important; margin-bottom: 10px !important; color: #000 !important; line-height: 1.4 !important; }
       #dayBookPrintSubheader { display: flex !important; justify-content: space-between !important; font-size: 14px !important; font-weight: bold !important; margin-bottom: 5px !important; color: #000 !important; }
 
       /* ===== Day Book print — full colors + alignment ===== */
@@ -596,7 +597,7 @@
       .daybook-unified-layout input[type="number"] { text-align: right !important; white-space: nowrap !important; }
       .daybook-unified-layout td.no-print,
       .daybook-unified-layout th.no-print { display: none !important; }
-      .daybook-unified-layout tr { page-break-inside: avoid !important; }
+      .daybook-unified-layout tr { page-break-inside: avoid !important; break-inside: avoid !important; }
 
       /* Delete button never prints, and the flex wrapper collapses to a block */
       .daybook-unified-layout .db-delete-btn { display: none !important; }
@@ -656,7 +657,7 @@
       #auditSubmissionsTable th { min-width: 0 !important; }
       #auditSubmissionsTable .no-print { display: none !important; }
       #auditSubmissionsTable thead { display: table-header-group !important; }
-      #auditSubmissionsTable tr { page-break-inside: avoid !important; }
+      #auditSubmissionsTable tr { page-break-inside: avoid !important; break-inside: avoid !important; }
 
       /* ===== Credit Bill print — Date through Satisfaction Bar / Status only ===== */
       #creditBillPrintSection {
@@ -716,15 +717,46 @@
       #creditBillTable .no-print,
       #creditBillTable .cb-action-col { display: none !important; }
       #creditBillTable .badge {
+        white-space: nowrap !important;
         -webkit-print-color-adjust: exact !important;
         print-color-adjust: exact !important;
         color-adjust: exact !important;
       }
+      #creditBillTable .cb-vehicle-input,
+      #creditBillTable .cb-mobile-input {
+        border: none !important;
+        background: transparent !important;
+        color: #000 !important;
+        padding: 0 !important;
+        width: auto !important;
+        font-size: 9.5px !important;
+        box-shadow: none !important;
+        -webkit-appearance: none !important;
+        appearance: none !important;
+      }
       #creditBillPrintSection .no-print { display: none !important; }
       #creditCustomerSummary { display: none !important; }
       #creditBillTable thead { display: table-header-group !important; }
-      #creditBillTable tr { page-break-inside: avoid !important; }
+      #creditBillTable tr { page-break-inside: avoid !important; break-inside: avoid !important; }
       #creditBillTable tfoot td { font-weight: 800 !important; }
+
+      /* ===== Staff Duty & Wages print ===== */
+      #staffDutyRecordsTable thead,
+      #staffPayrollTable thead { display: table-header-group !important; }
+      #staffDutyRecordsTable tr,
+      #staffPayrollTable tr { page-break-inside: avoid !important; break-inside: avoid !important; }
+      #staffDutyRecordsTable th, #staffDutyRecordsTable td,
+      #staffPayrollTable th, #staffPayrollTable td { font-size: 10px !important; padding: 3px 4px !important; }
+
+      /* ===== 24-Hr Reconciliation print ===== */
+      #dailyReconcilePrintArea table thead { display: table-header-group !important; }
+      #dailyReconcilePrintArea tr { page-break-inside: avoid !important; break-inside: avoid !important; }
+      #dailyReconcilePrintArea .grid-3,
+      #dailyReconcilePrintArea .metric-box { page-break-inside: avoid !important; break-inside: avoid !important; }
+
+      /* ===== Company-wise consolidated credit report print ===== */
+      #companyCreditReportArea table thead { display: table-header-group !important; }
+      #companyCreditReportArea tr { page-break-inside: avoid !important; break-inside: avoid !important; }
     }
 
     @media (max-width: 768px) {
@@ -1525,8 +1557,7 @@
       var dieselPrice = isMixed ? p1 : (!isAllPetrol ? p1 : 0);
       var petrolPrice = isMixed ? p2 : (isAllPetrol ? p1 : 0);
       var totalVol = 0, totalSales = 0, hasError = false; var dieselVol = 0, dieselSales = 0, petrolVol = 0, petrolSales = 0;
-      var readingsSnapshot = {}; var persistentLastReadings = {};
-      try { persistentLastReadings = JSON.parse(localStorage.getItem("pump_last_readings")) || {}; } catch(e) {}
+      var readingsSnapshot = {};
       for (var i = 0; i < nozzles.length; i++) {
         var n = nozzles[i];
         var opInput = document.getElementById("opening_" + n.id); var clInput = document.getElementById("closing_" + n.id);
@@ -1540,9 +1571,7 @@
         readingsSnapshot["nozzle_" + n.id] = { id: n.id, label: n.label, opening: op, closing: cl, fuel: n.fuel, volume: vol, subTotal: subTotal, pairName: n.pairName || select.options[select.selectedIndex].text.split(":")[0] };
         var subEl = document.getElementById("nozzle_subtotal_" + n.id);
         if (subEl) subEl.innerText = vol.toFixed(2) + " L (₹ " + window.fmtCurr(subTotal) + ")";
-        if (clInput && clInput.value.trim() !== "") persistentLastReadings["nozzle_" + n.id] = clInput.value.trim();
       }
-      localStorage.setItem("pump_last_readings", JSON.stringify(persistentLastReadings));
       dieselSales = window.roundCurr(dieselSales); petrolSales = window.roundCurr(petrolSales); totalSales = window.roundCurr(dieselSales + petrolSales);
       var testDieselInput = document.getElementById("testDieselLitres"); var testPetrolInput = document.getElementById("testPetrolLitres");
       var testDieselLtr = (testDieselInput && !testDieselInput.classList.contains("hidden")) ? (parseFloat(testDieselInput.value) || 0) : 0;
@@ -1712,6 +1741,7 @@
       var container = document.getElementById("printContainer"); if (!container) { console.warn("printContainer missing"); return; }
       container.innerHTML = "";
       var clone = el.cloneNode(true);
+      clone.classList.remove("hidden"); clone.style.display = "";
       clone.querySelectorAll(".no-print").forEach(function(n) { if (n.parentNode) n.parentNode.removeChild(n); });
       clone.querySelectorAll(".hidden").forEach(function(n) { if (n.parentNode) n.parentNode.removeChild(n); });
 
@@ -1776,7 +1806,7 @@
       else if (diffAmount < 0) tallyText = '<span style="color:#dc2626;">⚠ Short: ₹ - ' + window.fmtCurr(Math.abs(diffAmount)) + '</span>';
       else tallyText = '<span style="color:#16a34a;">+ Plus: + ₹ ' + window.fmtCurr(diffAmount) + '</span>';
       c.innerHTML =
-        '<div class="receipt-header"><h3 style="font-size:1.15rem; font-weight:800; color:#0f172a;">THAYYIL PETROLEUM</h3><div style="font-size:0.75rem; color:#64748b;">Retail Outlet & Fuel Station</div><div style="font-size:0.85rem; font-weight:700; color:#0000FF; margin-top:2px;">Shift Handover & Reconciliation Slip</div></div>' +
+        '<div class="receipt-header"><h3 style="font-size:0.95rem; font-weight:800; color:#0f172a;">THAYYIL PETROLEUM MANAGEMENT SOFTWARE SYSTEM</h3><div style="font-size:0.75rem; color:#64748b;">Retail Outlet & Fuel Station</div><div style="font-size:0.85rem; font-weight:700; color:#0000FF; margin-top:2px;">Shift Handover & Reconciliation Slip</div></div>' +
         editorTag +
         '<div class="receipt-line"><span><strong>Staff / Operator Name:</strong></span><strong style="font-size:0.95rem; color:#0f172a;">' + rec.submittedBy + '</strong></div>' +
         '<div class="receipt-line"><span><strong>Duty Date:</strong> ' + window.formatDateToDMY(rec.date) + '</span><span><strong>Time:</strong> ' + rec.timestamp + '</span></div>' +
@@ -1841,7 +1871,7 @@
       else if (balanceDiff < 0) { diffBoxBg = 'background: #fee2e2; color: #dc2626; border: 1px solid #fecaca;'; diffBoxText = '⚠ 24-HOUR NET SHORTAGE: ₹ - ' + window.fmtCurr(Math.abs(balanceDiff)); }
       else { diffBoxBg = 'background: #f0fdf4; color: #16a34a; border: 1px solid #bbf7d0;'; diffBoxText = '+ 24-HOUR SURPLUS: + ₹ ' + window.fmtCurr(balanceDiff); }
       container.innerHTML = '<div style="background:var(--card-bg); padding:1.25rem; border-radius:0.5rem; border:1px solid var(--border-color);" id="dailyReconcilePrintArea">' +
-        '<div style="text-align:center; border-bottom:2px solid var(--border-color); padding-bottom:0.75rem; margin-bottom:1rem;"><h2 style="font-size:1.25rem; font-weight:800; color:var(--text-color);">THAYYIL PETROLEUM</h2><p style="font-size:0.85rem; color:var(--text-muted);">Daily Station Reconciliation Report (24 Hours)</p><p style="font-size:0.9rem; font-weight:700; color:#0000FF; margin-top:4px;">Period: ' + window.formatDateToDMY(selectedDate) + ' 06:00 AM to Next Day 06:00 AM</p></div>' +
+        '<div style="text-align:center; border-bottom:2px solid var(--border-color); padding-bottom:0.75rem; margin-bottom:1rem;"><h2 style="font-size:1.1rem; font-weight:800; color:var(--text-color);">THAYYIL PETROLEUM MANAGEMENT SOFTWARE SYSTEM</h2><p style="font-size:0.85rem; color:var(--text-muted);">Daily Station Reconciliation Report (24 Hours)</p><p style="font-size:0.9rem; font-weight:700; color:#0000FF; margin-top:4px;">Period: ' + window.formatDateToDMY(selectedDate) + ' 06:00 AM to Next Day 06:00 AM</p></div>' +
         '<h4 style="margin-bottom:0.5rem; color:var(--text-color); font-size:0.95rem;">1. All Nozzles Meter Summary (Opening – Closing)</h4>' +
         '<div class="table-responsive-box"><table><thead><tr><th>Nozzle Description</th><th style="text-align:right;">Day Initial Opening</th><th style="text-align:right;">Day Final Closing</th><th style="text-align:right;">24-Hr Net Fuel Sold</th></tr></thead><tbody>' + (nozzleTableRows || '<tr><td colspan="4" style="text-align:center; color:#94a3b8; padding:1rem;">No activity.</td></tr>') + '</tbody></table></div>' +
         '<div class="grid grid-3" style="margin-bottom:1.25rem;"><div class="metric-box"><div class="metric-label">Total Diesel Sold</div><div class="metric-value" style="color:#0284c7;">' + totDieselVol.toFixed(2) + ' L</div><div style="font-size:0.85rem; font-weight:700; color:#0284c7; margin-top:4px;">₹ ' + window.fmtCurr(totDieselSales) + '</div></div><div class="metric-box"><div class="metric-label">Total Petrol Sold</div><div class="metric-value" style="color:#d97706;">' + totPetrolVol.toFixed(2) + ' L</div><div style="font-size:0.85rem; font-weight:700; color:#d97706; margin-top:4px;">₹ ' + window.fmtCurr(totPetrolSales) + '</div></div><div class="metric-box"><div class="metric-label">Total Fuel Sales (₹)</div><div class="metric-value" style="color:#0000FF;">₹ ' + window.fmtCurr(totalCalculatedSales) + '</div><div style="font-size:0.75rem; color:var(--text-muted); margin-top:4px;">Combined Vol: ' + totVol.toFixed(2) + ' L</div></div></div>' +
@@ -2254,7 +2284,7 @@
       var bankDeposits = []; document.querySelectorAll("#dayBookBankDepositsBody .db-bank-row").forEach(function(r, idx) { var amt = window.roundCurr(r.querySelector(".db-bank-amt").value); bankDeposits.push({ name: "BANK DEPOSIT " + (idx + 1), amt: amt }); });
       var cdmDeposits = []; document.querySelectorAll("#dayBookCdmDepositsBody .db-cdm-row").forEach(function(r, idx) { var amt = window.roundCurr(r.querySelector(".db-cdm-amt").value); cdmDeposits.push({ name: "CDM DEPOSIT " + (idx + 1), amt: amt }); });
       var maxLen = Math.max(rcptRows.length, payRows.length);
-      var excelData = [["THAYYIL PETROLEUM - DAY BOOK"], ["Date: " + window.formatDateToDMY(dateKey)], [], ["RECEIPTS (DR)", "AMOUNT (₹)", "PAYMENTS (CR)", "AMOUNT (₹)"], ["OPENING BALANCE", op, "", ""]];
+      var excelData = [["THAYYIL PETROLEUM MANAGEMENT SOFTWARE SYSTEM - DAY BOOK"], ["Date: " + window.formatDateToDMY(dateKey)], [], ["RECEIPTS (DR)", "AMOUNT (₹)", "PAYMENTS (CR)", "AMOUNT (₹)"], ["OPENING BALANCE", op, "", ""]];
       for (var i = 0; i < maxLen; i++) { var rItem = rcptRows[i] || { name: "", amt: "" }; var pItem = payRows[i] || { name: "", amt: "" }; excelData.push([rItem.name, rItem.amt, pItem.name, pItem.amt]); }
       bankDeposits.forEach(function(b) { excelData.push(["", "", b.name, b.amt]); });
       cdmDeposits.forEach(function(c) { excelData.push(["", "", c.name, c.amt]); });
@@ -2348,7 +2378,10 @@
       var html = '<div class="panel" style="background:linear-gradient(135deg, #eff6ff, #f0f9ff); border:2px solid #3b82f6; margin-bottom:1rem;">';
       html += '<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.85rem; flex-wrap:wrap; gap:0.5rem;"><div><h4 style="margin:0; color:#1e40af; font-size:1rem;">👤 Customer Summary: ' + custDisplay + '</h4><small style="color:#3b82f6;">Based on current filters • ' + filteredRows.length + ' bill(s) • ' + custList.length + ' customer(s)';
       if (mobileList.length > 0) html += ' • 📱 ' + mobileList.length + ' mobile(s) on file';
-      html += '</small></div></div><div class="grid grid-3"><div class="metric-box" style="background:#fff; border:1px solid #bfdbfe;"><div class="metric-label" style="color:#1e40af;">Total Credit Bill Amount</div><div class="metric-value" style="color:#0284c7;">₹ ' + window.fmtCurr(totAmt) + '</div></div><div class="metric-box" style="background:#fff; border:1px solid #bbf7d0;"><div class="metric-label" style="color:#166534;">Total Amount Paid</div><div class="metric-value" style="color:#16a34a;">₹ ' + window.fmtCurr(totPaid) + '</div></div><div class="metric-box" style="background:#fff; border:1px solid #fecaca; display:flex; flex-direction:column; justify-content:space-between;"><div class="metric-label" style="color:#991b1b;">Total Pending Balance</div><div class="metric-value" style="color:' + (totBal > 0 ? '#dc2626' : '#16a34a') + ';">₹ ' + window.fmtCurr(totBal) + '</div>';
+      window._companyReportRows = filteredRows; window._companyReportName = custList.length === 1 ? custList[0] : "";
+      html += '</small></div>';
+      if (custList.length === 1) html += '<button onclick="window.printCompanyCreditReport()" class="btn btn-primary no-print" style="padding:6px 12px; font-size:0.8rem; white-space:nowrap;">🖨 Print Company Report</button>';
+      html += '</div><div class="grid grid-3"><div class="metric-box" style="background:#fff; border:1px solid #bfdbfe;"><div class="metric-label" style="color:#1e40af;">Total Credit Bill Amount</div><div class="metric-value" style="color:#0284c7;">₹ ' + window.fmtCurr(totAmt) + '</div></div><div class="metric-box" style="background:#fff; border:1px solid #bbf7d0;"><div class="metric-label" style="color:#166534;">Total Amount Paid</div><div class="metric-value" style="color:#16a34a;">₹ ' + window.fmtCurr(totPaid) + '</div></div><div class="metric-box" style="background:#fff; border:1px solid #fecaca; display:flex; flex-direction:column; justify-content:space-between;"><div class="metric-label" style="color:#991b1b;">Total Pending Balance</div><div class="metric-value" style="color:' + (totBal > 0 ? '#dc2626' : '#16a34a') + ';">₹ ' + window.fmtCurr(totBal) + '</div>';
       if (totBal > 0) html += '<button onclick="window.bulkSettleCreditBills()" class="btn btn-success" style="margin-top:0.5rem; padding:8px 10px; font-size:0.8rem; font-weight:700; width:100%; white-space:normal; line-height:1.15;">💸 Settle All ' + pendingBills + ' Bill' + (pendingBills === 1 ? '' : 's') + ' (₹ ' + window.fmtCurr(totBal) + ')</button>';
       else html += '<small style="color:#16a34a; font-weight:700; margin-top:0.35rem;">✔ All bills settled</small>';
       html += '</div></div>';
@@ -2356,6 +2389,28 @@
       else { html += '<p style="margin-top:0.75rem; font-size:0.85rem; color:var(--text-muted); font-style:italic;">No payments recorded yet for these bills.</p>'; }
       html += '</div>'; container.innerHTML = html;
     };
+
+    window.printCompanyCreditReport = function() {
+      var rows = window._companyReportRows || []; var name = window._companyReportName || "";
+      if (!name || !rows.length) { alert("Filter the Credit Bill Register to a single company first."); return; }
+      var totAmt = 0, totPaid = 0, totBal = 0; var mobile = "";
+      rows.forEach(function(r) { totAmt += r.amount; totPaid += r.paidAmount; totBal += r.balance; if (r.mobile && !mobile) mobile = r.mobile; });
+      var sorted = rows.slice().sort(function(a, b) { return (a.date || "").localeCompare(b.date || ""); });
+      var html = '<div style="background:#fff; padding:1rem;">';
+      html += '<div style="text-align:center; border-bottom:2px solid #000; padding-bottom:0.6rem; margin-bottom:0.85rem;"><h2 style="font-size:1.05rem; font-weight:800; margin:0; color:#000;">THAYYIL PETROLEUM MANAGEMENT SOFTWARE SYSTEM</h2><p style="font-size:0.85rem; margin:4px 0 0; color:#000;">Consolidated Credit Bill Report</p></div>';
+      html += '<div style="margin-bottom:0.75rem; font-size:0.9rem; color:#000;"><strong>Company / Customer:</strong> ' + name + (mobile ? ' &nbsp;•&nbsp; <strong>Mobile:</strong> +91 ' + mobile : '') + ' &nbsp;•&nbsp; <strong>Printed:</strong> ' + window.formatDateToDMY(window.getOperationalDateStr()) + '</div>';
+      html += '<table style="width:100%; border-collapse:collapse; font-size:0.82rem;"><thead><tr style="background:#111; color:#fff;"><th style="padding:5px; border:1px solid #000;">Bill Date</th><th style="padding:5px; border:1px solid #000;">Shift</th><th style="padding:5px; border:1px solid #000; text-align:right;">Bill Amount (₹)</th><th style="padding:5px; border:1px solid #000;">Payments (Date — Amount)</th><th style="padding:5px; border:1px solid #000; text-align:right;">Paid (₹)</th><th style="padding:5px; border:1px solid #000; text-align:right;">Balance (₹)</th></tr></thead><tbody>';
+      sorted.forEach(function(r) {
+        var payStr = (r.payments && r.payments.length) ? r.payments.slice().sort(function(a, b) { return (a.date || "").localeCompare(b.date || ""); }).map(function(p) { return window.formatDateToDMY(p.date || "-") + " — ₹ " + window.fmtCurr(p.amount); }).join("<br>") : "-";
+        html += '<tr><td style="padding:5px; border:1px solid #000;">' + window.formatDateToDMY(r.date) + '</td><td style="padding:5px; border:1px solid #000;">' + (r.shift || "-") + '</td><td style="padding:5px; border:1px solid #000; text-align:right;">₹ ' + window.fmtCurr(r.amount) + '</td><td style="padding:5px; border:1px solid #000; font-size:0.78rem;">' + payStr + '</td><td style="padding:5px; border:1px solid #000; text-align:right; color:#166534; font-weight:700;">₹ ' + window.fmtCurr(r.paidAmount) + '</td><td style="padding:5px; border:1px solid #000; text-align:right; font-weight:700; color:' + (r.balance > 0 ? '#991b1b' : '#166534') + ';">₹ ' + window.fmtCurr(r.balance) + '</td></tr>';
+      });
+      html += '</tbody><tfoot><tr style="font-weight:800;"><td colspan="2" style="padding:5px; border:1px solid #000; text-align:right;">TOTALS (' + rows.length + ' bill' + (rows.length === 1 ? '' : 's') + '):</td><td style="padding:5px; border:1px solid #000; text-align:right;">₹ ' + window.fmtCurr(totAmt) + '</td><td style="padding:5px; border:1px solid #000;"></td><td style="padding:5px; border:1px solid #000; text-align:right;">₹ ' + window.fmtCurr(totPaid) + '</td><td style="padding:5px; border:1px solid #000; text-align:right; color:' + (totBal > 0 ? '#991b1b' : '#166534') + ';">₹ ' + window.fmtCurr(totBal) + '</td></tr></tfoot></table>';
+      html += '<div style="margin-top:1rem; padding:0.6rem; border:2px solid #000; text-align:center; font-weight:800; font-size:0.95rem;">FINAL REMAINING BALANCE: ₹ ' + window.fmtCurr(totBal) + '</div>';
+      html += '</div>';
+      var area = document.getElementById("companyCreditReportArea"); area.innerHTML = html;
+      window.printElement(area, { landscape: false });
+    };
+
     window.renderCreditBills = function() {
       if (!window.currentUser) return; var role = window.currentUser.role; if (role !== "Admin" && role !== "Manager" && role !== "Accountant") return;
       var body = document.getElementById("creditBillBody"); var foot = document.getElementById("creditBillFoot"); if (!body) return; body.innerHTML = "";
@@ -2373,7 +2428,7 @@
         var paymentCount = (r.payments || []).length;
         var vehCell = canEdit ? '<input type="text" class="cb-vehicle-input" value="' + (r.vehicle || "").replace(/"/g, '&quot;') + '" onchange="window.updateCreditVehicle(\'' + r.key + '\', this.value)" placeholder="KA-01-AB-1234">' : '<span class="cb-vehicle-display">' + (r.vehicle || "-") + '</span>';
         var mobileCell = canEdit ? '<input type="text" class="cb-mobile-input" value="' + (r.mobile || "").replace(/"/g, '&quot;') + '" onchange="window.updateCreditMobile(\'' + r.key + '\', this.value)" placeholder="9876543210" maxlength="10" inputmode="numeric" pattern="[0-9]*" title="10-digit mobile number">' : '<span class="cb-mobile-display">' + (r.mobile ? '+91 ' + r.mobile : "-") + '</span>';
-        var paidCell = canEdit ? '<div style="display:flex; flex-direction:column; align-items:flex-end; gap:5px;"><div style="font-weight:700; font-size:0.95rem;">₹ ' + window.fmtCurr(r.paidAmount) + '</div>' + (r.balance > 0 ? '<div style="display:flex; gap:3px;"><input type="number" step="0.01" placeholder="Add" style="padding:5px 6px; font-size:0.82rem; width:5rem; text-align:right; border-radius:4px; border:1px solid var(--input-border);" onkeydown="if(event.key===\'Enter\'){window.addCreditPayment(\'' + r.key + '\', this.value); this.value=\'\';}" title="Type amount and press Enter to add payment"><button onclick="window.promptAddPayment(\'' + r.key + '\')" class="btn btn-success" style="padding:3px 8px; font-size:12px; min-height:32px;">+</button></div>' : '') + '</div>' : '₹ ' + window.fmtCurr(r.paidAmount);
+        var paidCell = canEdit ? '<div style="display:flex; flex-direction:column; align-items:flex-end; gap:5px;"><div style="font-weight:700; font-size:0.95rem;">₹ ' + window.fmtCurr(r.paidAmount) + '</div>' + (r.balance > 0 ? '<div class="no-print" style="display:flex; gap:3px;"><input type="number" step="0.01" placeholder="Add" style="padding:5px 6px; font-size:0.82rem; width:5rem; text-align:right; border-radius:4px; border:1px solid var(--input-border);" onkeydown="if(event.key===\'Enter\'){window.addCreditPayment(\'' + r.key + '\', this.value); this.value=\'\';}" title="Type amount and press Enter to add payment"><button onclick="window.promptAddPayment(\'' + r.key + '\')" class="btn btn-success" style="padding:3px 8px; font-size:12px; min-height:32px;">+</button></div>' : '') + '</div>' : '₹ ' + window.fmtCurr(r.paidAmount);
         var dateCell = "-"; if (paymentCount === 1) dateCell = window.formatDateToDMY(r.payments[0].date || "-"); else if (paymentCount > 1) dateCell = '<span style="font-size:0.85rem; font-weight:600;">Multiple (' + paymentCount + ')</span>';
         var historyCell = '<button onclick="window.showCreditPaymentHistory(\'' + r.key + '\')" class="btn btn-info no-print cb-action-btn" title="View payment history (' + paymentCount + ' entries)">📖 History (' + paymentCount + ')</button>';
         var settleCell = r.balance > 0 ? '<button onclick="window.settleCreditBill(\'' + r.key + '\')" class="btn btn-success no-print cb-action-btn" title="Settle full balance">✅ Settle</button>' : '<span style="color:#16a34a; font-weight:700; font-size:0.88rem;">✅ Settled</span>';
@@ -2455,7 +2510,7 @@
           <path d="M 76.5 41 C 76.5 41, 80 45.5, 80 47.5 A 3.5 3.5 0 1 1 73 47.5 C 73 45.5, 76.5 41, 76.5 41 Z" fill="#e11d48"/>
           <text x="60" y="77" font-family="system-ui, -apple-system, sans-serif" font-size="9.5" font-weight="800" fill="#93c5fd" text-anchor="middle" letter-spacing="2.5">PETROLEUM</text>
         </svg>
-        <h2 style="font-size: 1.25rem; color: var(--text-color);">Thayyil Petroleum</h2>
+        <h2 style="font-size: 1.1rem; color: var(--text-color);">Thayyil Petroleum Management Software System</h2>
       </div>
       <p style="text-align: center; font-size: 0.85rem; color: var(--text-muted); margin-bottom: 1.5rem;">User Registration</p>
       <form onsubmit="window.handleRegister(event)">
@@ -2482,7 +2537,7 @@
           <path d="M 76.5 41 C 76.5 41, 80 45.5, 80 47.5 A 3.5 3.5 0 1 1 73 47.5 C 73 45.5, 76.5 41, 76.5 41 Z" fill="#e11d48"/>
           <text x="60" y="77" font-family="system-ui, -apple-system, sans-serif" font-size="9.5" font-weight="800" fill="#93c5fd" text-anchor="middle" letter-spacing="2.5">PETROLEUM</text>
         </svg>
-        <h2 style="font-size:1.35rem; color:var(--text-color);">Thayyil Petroleum</h2>
+        <h2 style="font-size:1.15rem; color:var(--text-color);">Thayyil Petroleum Management Software System</h2>
         <p style="font-size:0.8rem; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.05em; font-weight:600;">Station Management System</p>
       </div>
       <form onsubmit="window.handleLogin(event)">
@@ -2629,7 +2684,7 @@
             </div>
 
             <div id="staffDutyDetailPrintArea">
-              <div class="print-only-title">STAFF DUTY RECORDS & INDIVIDUAL WAGE CALCULATOR</div>
+              <div class="print-only-title">THAYYIL PETROLEUM MANAGEMENT SOFTWARE SYSTEM<br><span style="font-size:0.75em; font-weight:600;">Staff Duty Records & Individual Wage Calculator</span></div>
               <div style="overflow-x:auto;">
                 <table id="staffDutyRecordsTable">
                   <thead><tr><th>Staff Name</th><th>Duty Date & Shift</th><th>Nozzles Assigned & Rates</th><th>Hours Worked</th><th>Calculated Earnings</th><th>Shortage / Surplus</th><th>Net Balance</th></tr></thead>
@@ -2639,7 +2694,7 @@
             </div>
 
             <div style="margin-top:2rem;" id="staffPayrollSummarySection">
-              <div class="print-only-title">STAFF CONSOLIDATED SUMMARY</div>
+              <div class="print-only-title">THAYYIL PETROLEUM MANAGEMENT SOFTWARE SYSTEM<br><span style="font-size:0.75em; font-weight:600;">Staff Consolidated Summary</span></div>
               <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.75rem; flex-wrap:wrap; gap:0.5rem;">
                 <div><h4 style="color:var(--text-color); margin:0;">Staff Consolidated Summary</h4><small style="color:var(--text-muted); font-size:0.75rem;">(Gross Earnings ± Shortage / Surplus - Salary Advance = Net Payable)</small></div>
                 <button onclick="window.printCurrentSection('staffPayrollSummarySection')" class="btn btn-primary no-print" style="padding:4px 8px; font-size:0.75rem;">🖨 Print Summary</button>
@@ -2659,7 +2714,8 @@
         <!-- TAB 3: AUDIT -->
         <div id="auditTab" class="tab-panel hidden">
           <div class="panel" id="auditPrintSection">
-            <div class="panel-title" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:0.5rem;">
+            <div class="print-only-title">THAYYIL PETROLEUM MANAGEMENT SOFTWARE SYSTEM<br><span style="font-size:0.75em; font-weight:600;">Audit Records & Historical Log</span></div>
+            <div class="panel-title no-print" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:0.5rem;">
               <span>Audit Records & Historical Log (Manager / Admin / Accountant)</span>
               <div style="display:flex; gap:0.5rem;" class="no-print">
                 <button onclick="window.exportTableToCSV('auditSubmissionsTable', 'Pump_Audit_Log')" class="btn btn-secondary" style="padding:5px 10px; font-size:0.8rem;">📥 Export CSV</button>
@@ -2817,7 +2873,8 @@
         <!-- TAB 6: CREDIT BILL -->
         <div id="creditBillTab" class="tab-panel hidden">
           <div class="panel" id="creditBillPrintSection">
-            <div class="panel-title" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:0.5rem;">
+            <div class="print-only-title" id="creditBillPrintTitle">THAYYIL PETROLEUM MANAGEMENT SOFTWARE SYSTEM<br><span style="font-size:0.75em; font-weight:600;">Credit Bill Register</span></div>
+            <div class="panel-title no-print" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:0.5rem;">
               <span>Credit Bill Register (Customer Credit Tracking & Settlement)</span>
               <div style="display:flex; gap:0.5rem;" class="no-print">
                 <button id="cbWhatsAppQueueBtn" onclick="window.showWhatsAppQueue()" class="btn btn-success" style="padding:5px 10px; font-size:0.8rem;">📬 WhatsApp Queue (0)</button>
@@ -2834,6 +2891,7 @@
               <div style="margin-top:1.2rem;"><button class="btn btn-secondary" onclick="document.getElementById('cbFilterCustomer').value=''; document.getElementById('cbFilterDate').value=''; document.getElementById('cbFilterMonth').value=''; document.getElementById('cbFilterShift').value=''; document.getElementById('cbFilterStatus').value=''; window.renderCreditBills();" style="padding:6px 12px; font-size:0.75rem;">Clear</button></div>
             </div>
             <div id="creditCustomerSummary" class="hidden no-print"></div>
+            <div id="companyCreditReportArea" class="hidden no-print"></div>
             <div style="overflow-x:auto; border:1px solid var(--border-color); border-radius:0.375rem;">
               <table id="creditBillTable">
                 <thead>
@@ -2929,4 +2987,3 @@
 
 </body>
 </html>
-
