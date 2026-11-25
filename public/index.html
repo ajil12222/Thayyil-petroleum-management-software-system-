@@ -1056,6 +1056,21 @@
     window.closeWhatsAppQueue = function() { document.getElementById("whatsappQueueModal").classList.add("hidden"); };
 
     /* ============ Storage + Session ============ */
+    window.loadPersistentWageRate = function() { var v = parseFloat(localStorage.getItem("pump_wage_rate")); return (!isNaN(v) && v > 0) ? v : 50; };
+    window.saveWageRateAndRefresh = function(el) {
+      var v = parseFloat(el.value);
+      if (!isNaN(v) && v > 0) localStorage.setItem("pump_wage_rate", String(v));
+      window.renderStaffSummary();
+    };
+    // One-time backfill: any submission saved before this fix has no locked-in wage rate.
+    // Treat "now" as the cutover point so nothing changes retroactively from here on --
+    // existing records get stamped with whatever rate is currently set, once, and never again.
+    window.migrateWageRateBackfill = function() {
+      var subs = []; try { subs = JSON.parse(localStorage.getItem("pump_submissions")) || []; } catch (e) { subs = []; }
+      var rate = window.loadPersistentWageRate(); var changed = false;
+      subs.forEach(function(rec) { if (rec.wageRateApplied === undefined) { rec.wageRateApplied = rate; changed = true; } });
+      if (changed) localStorage.setItem("pump_submissions", JSON.stringify(subs));
+    };
     window.loadPersistentFuelRates = function() { try { return JSON.parse(localStorage.getItem("pump_fuel_rates")) || { diesel: "96.50", petrol: "106.50" }; } catch(e) { return { diesel: "96.50", petrol: "106.50" }; } };
     window.savePersistentFuelRates = function() {
       var isPrivileged = window.currentUser && (window.currentUser.role === "Admin" || window.currentUser.role === "Manager" || window.currentUser.role === "Accountant");
@@ -1086,7 +1101,7 @@
        pulled down first, so the same data shows up no matter which
        device or browser you open the app in.
     ============================================================ */
-    window.SYNC_KEYS = ["pump_users", "pump_submissions", "pump_last_readings", "pump_fuel_rates", "pump_daybooks", "pump_credit_bills", "pump_whatsapp_config", "pump_whatsapp_queue"];
+    window.SYNC_KEYS = ["pump_users", "pump_submissions", "pump_last_readings", "pump_fuel_rates", "pump_daybooks", "pump_credit_bills", "pump_whatsapp_config", "pump_whatsapp_queue", "pump_wage_rate"];
     window._suppressSyncPush = false;
     window._syncErrorShown = false;
     window._sessionExpiredHandled = false;
@@ -1179,6 +1194,7 @@
         if (!result.authenticated) { window.hideCloudSyncOverlay(); window.showPage("loginPage"); return; }
         window.seedLocalDefaultsIfMissing();
         window.migrateCreditBillStore();
+        window.migrateWageRateBackfill();
         var allUsers = []; try { allUsers = JSON.parse(localStorage.getItem("pump_users")) || []; } catch (e) {}
         var full = allUsers.find(function(u) { return normalizeStr(u.username) === normalizeStr(serverUser.username); }) || serverUser;
         window.updateCloudSyncIndicator(result.ok ? "synced" : "offline");
@@ -1233,7 +1249,7 @@
       var sb = document.getElementById("appSidebar"); if (sb && window.innerWidth <= 768) sb.classList.remove("open");
       window.enforceDateMaxLimits();
       window.initDefaultMonthFilters();
-      if (tabId === "staffDetailsTab") { window.populateStaffFilterDropdown(); window.initStaffMonths(); window.renderStaffSummary(); }
+      if (tabId === "staffDetailsTab") { var wrEl = document.getElementById("customWageRateInput"); if (wrEl) wrEl.value = window.loadPersistentWageRate(); window.populateStaffFilterDropdown(); window.initStaffMonths(); window.renderStaffSummary(); }
       if (tabId === "auditTab") { window.populateAuditStaffFilterDropdown(); window.renderSubmissionsTable(); }
       if (tabId === "reconcileTab") window.render24HourReconciliation();
       if (tabId === "dayBookTab") window.initDayBookDate();
@@ -1669,10 +1685,12 @@
       var feedbackStr = document.getElementById("shiftFeedback").value.trim() || "-";
       var advanceTaken = window.roundCurr(calc.totalAdvance);
       var shortageDeduction = (calc.diff < 0) ? window.roundCurr(Math.abs(calc.diff)) : 0;
-      if (window.activeEditId) { for (var idx = 0; idx < submissions.length; idx++) { if (submissions[idx].id === window.activeEditId) { submissions[idx].isArchived = true; submissions[idx].approvalStatus = "Archived"; break; } } }
+      var originalEditedRecord = null;
+      if (window.activeEditId) { for (var idx = 0; idx < submissions.length; idx++) { if (submissions[idx].id === window.activeEditId) { originalEditedRecord = submissions[idx]; submissions[idx].isArchived = true; submissions[idx].approvalStatus = "Archived"; break; } } }
+      var wageRateForRecord = window.activeEditId ? ((originalEditedRecord && originalEditedRecord.wageRateApplied !== undefined) ? originalEditedRecord.wageRateApplied : window.loadPersistentWageRate()) : window.loadPersistentWageRate();
       var shiftTimingStr = convertTo12Hour(calc.startTime) + " - " + convertTo12Hour(calc.endTime);
       var isPrivileged = window.currentUser && (window.currentUser.role === "Admin" || window.currentUser.role === "Manager" || window.currentUser.role === "Accountant");
-      var newRecord = { id: Date.now(), submissionToken: "TXN-" + Date.now() + "-" + Math.random().toString(36).substr(2, 6), date: dutyDate, submittedBy: window.activeEditId ? document.getElementById("editStaffTag").value : (window.currentUser ? window.currentUser.username : "Staff"), timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true }), shift: rawShiftName, shiftTime: shiftTimingStr, startTime: calc.startTime, endTime: calc.endTime, nozzlesAssigned: calc.nozzleSetupText, pairShortName: calc.pairShortName, nozzleKey: calc.nozzleKey, readings: calc.readingsSnapshot, hoursWorked: calc.duration.decimalHours, volume: calc.totalVol.toFixed(2), dieselVol: calc.dieselVol.toFixed(2), dieselSales: window.fmtCurr(calc.dieselSales), petrolVol: calc.petrolVol.toFixed(2), petrolSales: window.fmtCurr(calc.petrolSales), dieselRate: calc.dieselRate || '96.50', petrolRate: calc.petrolRate || '106.50', expected: window.fmtCurr(calc.totalSales), collected: window.fmtCurr(calc.totalCol), diff: window.fmtCurr(calc.diff), cash: window.roundCurr(calc.cash), coins: window.roundCurr(calc.coins), card: window.roundCurr(calc.card), gpay: window.roundCurr(calc.gpay), jump: window.roundCurr(calc.jump), hppay: window.roundCurr(calc.hppay), hppayItems: calc.hppayItems || [], ownerGpay: window.roundCurr(calc.totalOwnerGpay), ownerGpayItems: calc.ownerGpayItems || [], creditTotal: window.roundCurr(calc.totalCredit), creditItems: parsedCreditItems, creditDetails: creditRecords.join(", ") || "-", testDieselLtr: calc.testDieselLtr || 0, testDieselAmount: window.roundCurr(calc.testDieselAmount), testPetrolLtr: calc.testPetrolLtr || 0, testPetrolAmount: window.roundCurr(calc.testPetrolAmount), testAmount: window.roundCurr(calc.totalTestingAmount), advanceTaken: advanceTaken, feedback: feedbackStr, shortageDeduction: shortageDeduction, statusText: calc.statusText, isArchived: false, isEdited: window.activeEditId ? true : false, editedBy: window.activeEditId ? (window.currentUser ? (window.currentUser.username + " (" + window.currentUser.role + ")") : "Manager") : null, approvalStatus: isPrivileged ? "Approved" : "Pending" };
+      var newRecord = { id: Date.now(), submissionToken: "TXN-" + Date.now() + "-" + Math.random().toString(36).substr(2, 6), date: dutyDate, submittedBy: window.activeEditId ? document.getElementById("editStaffTag").value : (window.currentUser ? window.currentUser.username : "Staff"), timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true }), shift: rawShiftName, shiftTime: shiftTimingStr, startTime: calc.startTime, endTime: calc.endTime, nozzlesAssigned: calc.nozzleSetupText, pairShortName: calc.pairShortName, nozzleKey: calc.nozzleKey, readings: calc.readingsSnapshot, hoursWorked: calc.duration.decimalHours, wageRateApplied: wageRateForRecord, volume: calc.totalVol.toFixed(2), dieselVol: calc.dieselVol.toFixed(2), dieselSales: window.fmtCurr(calc.dieselSales), petrolVol: calc.petrolVol.toFixed(2), petrolSales: window.fmtCurr(calc.petrolSales), dieselRate: calc.dieselRate || '96.50', petrolRate: calc.petrolRate || '106.50', expected: window.fmtCurr(calc.totalSales), collected: window.fmtCurr(calc.totalCol), diff: window.fmtCurr(calc.diff), cash: window.roundCurr(calc.cash), coins: window.roundCurr(calc.coins), card: window.roundCurr(calc.card), gpay: window.roundCurr(calc.gpay), jump: window.roundCurr(calc.jump), hppay: window.roundCurr(calc.hppay), hppayItems: calc.hppayItems || [], ownerGpay: window.roundCurr(calc.totalOwnerGpay), ownerGpayItems: calc.ownerGpayItems || [], creditTotal: window.roundCurr(calc.totalCredit), creditItems: parsedCreditItems, creditDetails: creditRecords.join(", ") || "-", testDieselLtr: calc.testDieselLtr || 0, testDieselAmount: window.roundCurr(calc.testDieselAmount), testPetrolLtr: calc.testPetrolLtr || 0, testPetrolAmount: window.roundCurr(calc.testPetrolAmount), testAmount: window.roundCurr(calc.totalTestingAmount), advanceTaken: advanceTaken, feedback: feedbackStr, shortageDeduction: shortageDeduction, statusText: calc.statusText, isArchived: false, isEdited: window.activeEditId ? true : false, editedBy: window.activeEditId ? (window.currentUser ? (window.currentUser.username + " (" + window.currentUser.role + ")") : "Manager") : null, approvalStatus: isPrivileged ? "Approved" : "Pending" };
       submissions.unshift(newRecord);
       localStorage.setItem("pump_submissions", JSON.stringify(submissions));
       alert(window.activeEditId ? "Record updated successfully!" : "Shift record submitted successfully!");
@@ -1696,7 +1714,7 @@
       document.getElementById("editNotice").classList.remove("hidden");
       document.getElementById("editNoticeText").innerText = "Currently re-editing record of " + target.submittedBy + " (" + target.date + ") by " + window.currentUser.username + " (" + window.currentUser.role + ")";
       document.getElementById("editStaffTag").value = target.submittedBy;
-      var dateInput = document.getElementById("shiftDate"); dateInput.value = target.date; dateInput.removeAttribute("readonly");
+      var dateInput = document.getElementById("shiftDate"); dateInput.value = target.date; dateInput.setAttribute("readonly", "readonly");
       if (target.shift) { var shiftSelect = document.getElementById("shiftSelect"); if (target.shift.indexOf("Shift 1") !== -1) shiftSelect.value = "Shift 1"; else if (target.shift.indexOf("Shift 2") !== -1) shiftSelect.value = "Shift 2"; else if (target.shift.indexOf("Shift 3") !== -1) shiftSelect.value = "Shift 3"; }
       if (target.startTime) document.getElementById("shiftStart").value = target.startTime;
       if (target.endTime) document.getElementById("shiftEnd").value = target.endTime;
@@ -2035,7 +2053,7 @@
       if (!detailBody || !summaryBody) return; detailBody.innerHTML = ""; summaryBody.innerHTML = "";
       var filteredDetailSubs = subs.filter(function(rec) { if (rec.isArchived || rec.approvalStatus === "Rejected") return false; if (!isPrivileged && rec.submittedBy !== targetUser) return false; if (selectedStaff && rec.submittedBy !== selectedStaff) return false; if (selectedDate && rec.date !== selectedDate) return false; if (selectedMonth && rec.date && rec.date.indexOf(selectedMonth) !== 0) return false; if (selectedShift && (!rec.shift || rec.shift.indexOf(selectedShift) === -1)) return false; return true; });
       filteredDetailSubs.forEach(function(rec) {
-        var u = rec.submittedBy; var hrs = rec.hoursWorked || 8.0; var gross = window.roundCurr(hrs * customRate);
+        var u = rec.submittedBy; var hrs = rec.hoursWorked || 8.0; var rateForRec = (rec.wageRateApplied !== undefined) ? rec.wageRateApplied : customRate; var gross = window.roundCurr(hrs * rateForRec);
         var diffVal = (rec.diff !== undefined) ? window.roundCurr(rec.diff) : (window.roundCurr(rec.collected) - window.roundCurr(rec.expected));
         var net = window.roundCurr(gross + diffVal);
         var pairDisplay = rec.nozzlesAssigned || (rec.pairShortName ? rec.pairShortName : 'Pair 1');
@@ -2051,7 +2069,7 @@
       if (filteredDetailSubs.length === 0) detailBody.innerHTML = '<tr><td colspan="7" style="text-align:center; color:#94a3b8; padding:1.5rem;">No active duty entries found for selected filters</td></tr>';
       var summaryByUser = {}; var dayBookAdvances = window.getDayBookSalaryAdvancesByUser(summaryMonthFilter, summaryDateFilter);
       var filteredSummarySubs = subs.filter(function(rec) { if (rec.isArchived || rec.approvalStatus === "Rejected") return false; if (!isPrivileged && rec.submittedBy !== targetUser) return false; if (summaryStaffFilter && rec.submittedBy !== summaryStaffFilter) return false; if (summaryDateFilter && rec.date !== summaryDateFilter) return false; if (summaryMonthFilter && rec.date && rec.date.indexOf(summaryMonthFilter) !== 0) return false; if (selectedShift && (!rec.shift || rec.shift.indexOf(selectedShift) === -1)) return false; return true; });
-      filteredSummarySubs.forEach(function(rec) { var u = rec.submittedBy; var hrs = rec.hoursWorked || 8.0; var gross = window.roundCurr(hrs * customRate); var diffVal = (rec.diff !== undefined) ? window.roundCurr(rec.diff) : (window.roundCurr(rec.collected) - window.roundCurr(rec.expected)); if (!summaryByUser[u]) summaryByUser[u] = { shiftsCount: 0, totalHours: 0, gross: 0, netVariance: 0, salaryAdvance: 0, advanceEntries: [], net: 0 }; summaryByUser[u].shiftsCount += 1; summaryByUser[u].totalHours += hrs; summaryByUser[u].gross += gross; summaryByUser[u].netVariance += diffVal; });
+      filteredSummarySubs.forEach(function(rec) { var u = rec.submittedBy; var hrs = rec.hoursWorked || 8.0; var rateForRec = (rec.wageRateApplied !== undefined) ? rec.wageRateApplied : customRate; var gross = window.roundCurr(hrs * rateForRec); var diffVal = (rec.diff !== undefined) ? window.roundCurr(rec.diff) : (window.roundCurr(rec.collected) - window.roundCurr(rec.expected)); if (!summaryByUser[u]) summaryByUser[u] = { shiftsCount: 0, totalHours: 0, gross: 0, netVariance: 0, salaryAdvance: 0, advanceEntries: [], net: 0 }; summaryByUser[u].shiftsCount += 1; summaryByUser[u].totalHours += hrs; summaryByUser[u].gross += gross; summaryByUser[u].netVariance += diffVal; });
       Object.keys(dayBookAdvances).forEach(function(uName) { if (!isPrivileged && uName !== targetUser) return; if (summaryStaffFilter && uName !== summaryStaffFilter) return; if (!summaryByUser[uName]) summaryByUser[uName] = { shiftsCount: 0, totalHours: 0, gross: 0, netVariance: 0, salaryAdvance: 0, advanceEntries: [], net: 0 }; });
       var summaryKeys = Object.keys(summaryByUser);
       if (summaryKeys.length === 0) { summaryBody.innerHTML = '<tr><td colspan="7" style="text-align:center; color:#94a3b8; padding:1.5rem;">No summary available</td></tr>'; return; }
@@ -2670,7 +2688,7 @@
               <span>Staff Duty Records & Individual Wage Calculator</span>
               <div style="display:flex; gap:0.5rem; align-items:center;">
                 <label style="margin:0; font-size:0.8rem;">Wage Rate (₹/Hr):</label>
-                <input type="number" id="customWageRateInput" value="50" style="width:5rem; padding:4px;" oninput="window.renderStaffSummary()">
+                <input type="number" id="customWageRateInput" value="50" style="width:5rem; padding:4px;" oninput="window.saveWageRateAndRefresh(this)">
                 <button onclick="window.exportTableToCSV('staffDutyRecordsTable', 'Staff_Duty_Log')" class="btn btn-secondary no-print" style="padding:4px 8px; font-size:0.75rem;">📥 Export CSV</button>
                 <button onclick="window.printCurrentSection('staffDutyDetailPrintArea')" class="btn btn-primary no-print" style="padding:4px 8px; font-size:0.75rem;">🖨 Print Duty Table</button>
               </div>
@@ -2891,7 +2909,7 @@
               <div style="margin-top:1.2rem;"><button class="btn btn-secondary" onclick="document.getElementById('cbFilterCustomer').value=''; document.getElementById('cbFilterDate').value=''; document.getElementById('cbFilterMonth').value=''; document.getElementById('cbFilterShift').value=''; document.getElementById('cbFilterStatus').value=''; window.renderCreditBills();" style="padding:6px 12px; font-size:0.75rem;">Clear</button></div>
             </div>
             <div id="creditCustomerSummary" class="hidden no-print"></div>
-            <div id="companyCreditReportArea" class="hidden no-print"></div>
+            <div id="companyCreditReportArea" class="hidden"></div>
             <div style="overflow-x:auto; border:1px solid var(--border-color); border-radius:0.375rem;">
               <table id="creditBillTable">
                 <thead>
