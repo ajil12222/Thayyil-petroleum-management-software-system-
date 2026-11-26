@@ -475,6 +475,8 @@
       @page { size: A4 portrait; margin: 10mm; }
 
       html, body {
+        -webkit-text-size-adjust: 100% !important;
+        text-size-adjust: 100% !important;
         background: #fff !important;
         color: #000 !important;
         width: 100% !important;
@@ -489,6 +491,10 @@
 
       .sidebar, #appSidebar, .header, .menu-btn, .daybook-action-bar,
       .no-print { display: none !important; }
+      #printContainer, #printContainer * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+      #printContainer table { page-break-inside: auto !important; break-inside: auto !important; }
+      #printContainer thead { display: table-header-group !important; }
+      #printContainer tfoot { display: table-footer-group !important; }
 
       .dash-container { display: block !important; height: auto !important; overflow: visible !important; width: 100% !important; max-width: 100% !important; padding: 0 !important; margin: 0 !important; }
       .main-content { display: block !important; width: 100% !important; max-width: 100% !important; overflow: visible !important; height: auto !important; }
@@ -498,6 +504,10 @@
 
       #printContainer {
         display: block !important;
+        float: none !important;
+        transform: none !important;
+        zoom: 1 !important;
+        contain: none !important;
         visibility: visible !important;
         width: 100% !important;
         max-width: 100% !important;
@@ -1131,26 +1141,64 @@
       }
     };
 
+    /* Durable client-side sync queue. The actual database write remains on server.js. */
+    window.getPendingSyncKeys = function() {
+      try { return JSON.parse(localStorage.getItem("pump_pending_sync_keys") || "[]"); }
+      catch (e) { return []; }
+    };
+    window.setPendingSyncKey = function(key, pending) {
+      var keys = window.getPendingSyncKeys();
+      keys = keys.filter(function(k) { return k !== key; });
+      if (pending) keys.push(key);
+      try { localStorage.setItem("pump_pending_sync_keys", JSON.stringify(keys)); } catch (e) {}
+      window.updateCloudSyncIndicator(pending ? "offline" : (keys.length ? "offline" : "synced"));
+    };
     window.pushKeyToServer = function(key, attempt) {
-      if (window.SYNC_KEYS.indexOf(key) === -1) return;
+      if (window.SYNC_KEYS.indexOf(key) === -1) return Promise.resolve(false);
       attempt = attempt || 1;
-      var raw = localStorage.getItem(key);
-      var value; try { value = JSON.parse(raw); } catch (e) { value = raw; }
-      window.apiFetch("/api/sync", { method: "POST", body: JSON.stringify({ key: key, value: value }) })
+      if (!navigator.onLine) { window.setPendingSyncKey(key, true); return Promise.resolve(false); }
+      var raw = localStorage.getItem(key), value;
+      try { value = JSON.parse(raw); } catch (e) { value = raw; }
+      return window.apiFetch("/api/sync", { method: "POST", body: JSON.stringify({ key: key, value: value }) })
         .then(function(r) {
-          if (r.status === 401) { window.handleSessionExpired(); return; }
-          if (!r.body || !r.body.success) {
-            if (attempt < 3) setTimeout(function() { window.pushKeyToServer(key, attempt + 1); }, 1500 * attempt);
-            else { window.notifySyncFailure(key); window.updateCloudSyncIndicator("offline"); }
-          } else {
-            window.updateCloudSyncIndicator("synced");
+          if (r.status === 401) { window.handleSessionExpired(); return false; }
+          if (!r.body || !r.body.success) throw new Error("Server rejected sync");
+          window.setPendingSyncKey(key, false);
+          return true;
+        }).catch(function(err) {
+          if (attempt < 3 && navigator.onLine) {
+            return new Promise(function(resolve) { setTimeout(resolve, 1200 * attempt); })
+              .then(function() { return window.pushKeyToServer(key, attempt + 1); });
           }
-        })
-        .catch(function() {
-          if (attempt < 3) setTimeout(function() { window.pushKeyToServer(key, attempt + 1); }, 1500 * attempt);
-          else { window.notifySyncFailure(key); window.updateCloudSyncIndicator("offline"); }
+          window.setPendingSyncKey(key, true);
+          console.warn("Sync queued for later:", key, err);
+          return false;
         });
     };
+    window.flushPendingSync = function() {
+      if (!navigator.onLine) { window.updateCloudSyncIndicator("offline"); return Promise.resolve(false); }
+      var keys = window.getPendingSyncKeys();
+      if (!keys.length) { window.updateCloudSyncIndicator("synced"); return Promise.resolve(true); }
+      window.updateCloudSyncIndicator("offline");
+      return keys.reduce(function(chain, key) {
+        return chain.then(function(ok) {
+          return window.pushKeyToServer(key).then(function(sent) { return ok && sent; });
+        });
+      }, Promise.resolve(true));
+    };
+    window.manualSyncNow = function() {
+      var btn = document.getElementById("manualSyncBtn");
+      if (!navigator.onLine) { alert("You are offline. Your changes are saved on this device and will sync when the internet returns."); return; }
+      if (btn) { btn.disabled = true; btn.innerText = "⏳ Syncing…"; }
+      /* Push only keys known to have unsynced local changes; never overwrite
+         every cloud record with a potentially stale local snapshot. */
+      window.flushPendingSync().then(function(ok) {
+        if (ok && window.getPendingSyncKeys().length === 0) alert("Sync completed successfully.");
+        else alert("Some data is still waiting to sync. It remains saved on this device; please try again.");
+      }).finally(function() { if (btn) { btn.disabled = false; btn.innerText = "🔄 Manual Sync"; } });
+    };
+    window.addEventListener("online", function() { window.flushPendingSync(); });
+    window.addEventListener("offline", function() { window.updateCloudSyncIndicator("offline"); });
 
     (function() {
       var _setItem = localStorage.setItem.bind(localStorage);
@@ -2612,7 +2660,8 @@
           </div>
         </div>
         <div style="display:flex; align-items:center; gap:0.65rem;">
-          <span id="cloudSyncIndicator" title="Synced with MongoDB Atlas" style="font-size:0.95rem; cursor:default;">☁️</span>
+          <span id="cloudSyncIndicator" title="Cloud sync status" style="font-size:0.95rem; cursor:default;">☁️</span>
+          <button type="button" id="manualSyncBtn" onclick="window.manualSyncNow()" class="btn btn-secondary" style="padding:5px 8px; font-size:0.72rem;">🔄 Manual Sync</button>
           <button type="button" id="headerThemeToggleBtn" onclick="window.toggleTheme()" class="btn btn-secondary" style="padding:5px 9px; font-size:0.85rem; background:var(--bg-color); color:var(--text-color); border:1px solid var(--border-color);" title="Switch Dark / Light Theme">🌙</button>
           <div class="profile-card">
             <span id="profileName" style="font-weight:700; font-size:0.9rem; color:var(--text-color);"></span>
